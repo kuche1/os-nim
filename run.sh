@@ -26,6 +26,8 @@ mkdir -p diskimg/efi/boot
 
 mv src/bootx64 diskimg/efi/boot/bootx64.efi
 
+echo "Running eqmu..."
+
 qemu-system-x86_64 \
     -drive if=pflash,format=raw,file=ovmf/OVMF_CODE.fd,readonly=on \
     -drive if=pflash,format=raw,file=ovmf/OVMF_VARS.fd \
