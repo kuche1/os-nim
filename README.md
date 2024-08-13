@@ -1,4 +1,6 @@
 
+UEFI x64
+
 based on https://0xc0ffee.netlify.app/osdev/01-intro.html
 
 to run use `./run.sh`
