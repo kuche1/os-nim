@@ -1,6 +1,7 @@
 
 import libc
 import malloc
+import uefi
 
 type
   EfiStatus = uint
@@ -52,9 +53,8 @@ proc EfiMain(imgHandle: EfiHandle, sysTable: ptr EFiSystemTable): EfiStatus {.ex
 
   NimMain()
 
-  let msg = newWideCString("Hello, world!\n").toWideCString
   discard sysTable.conOut.clearScreen(sysTable.conOut)
-  discard sysTable.conOut.outputString(sysTable.conOut, msg)
+  discard sysTable.conOut.outputString(sysTable.conOut, W "Hello, world!\n")
 
   quit() # better quit (or probably just halt) than return to efi shell
   # return EfiSuccess
