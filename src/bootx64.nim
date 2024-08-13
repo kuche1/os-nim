@@ -52,7 +52,9 @@ proc EfiMain(imgHandle: EfiHandle, sysTable: ptr EFiSystemTable): EfiStatus {.ex
 
   NimMain()
 
+  let msg = newWideCString("Hello, world!\n").toWideCString
   discard sysTable.conOut.clearScreen(sysTable.conOut)
+  discard sysTable.conOut.outputString(sysTable.conOut, msg)
 
   quit() # better quit (or probably just halt) than return to efi shell
   # return EfiSuccess
