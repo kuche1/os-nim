@@ -2,8 +2,6 @@
 
 set -euo pipefail
 
-# https://0xc0ffee.netlify.app/osdev/01-intro.html
-
 nim c --os:any src/bootx64.nim
 
 rm -rf diskimg
