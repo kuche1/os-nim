@@ -49,7 +49,10 @@ const
 proc NimMain() {.importc.}
 
 proc EfiMain(imgHandle: EfiHandle, sysTable: ptr EFiSystemTable): EfiStatus {.exportc.} =
+
   NimMain()
+
   discard sysTable.conOut.clearScreen(sysTable.conOut)
+
   quit() # better quit (or probably just halt) than return to efi shell
   # return EfiSuccess
