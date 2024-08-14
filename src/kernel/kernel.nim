@@ -1,6 +1,5 @@
 
-import malloc
-import libc
+import common/[malloc, libc]
 
-proc KernelMain(): int {.exportc.} =
+proc main(): int {.exportc.} =
     return 0

@@ -8,6 +8,10 @@ echo 'Compiling boot...'
 
 nim c $NIM_FLAGS src/boot/bootx64.nim
 
+echo 'Compiling kernel...'
+
+nim c $NIM_FLAGS src/kernel/kernel.nim
+
 echo 'Copying files to disk image...'
 
 rm -rf diskimg
