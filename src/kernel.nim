@@ -2,5 +2,5 @@
 import malloc
 import libc
 
-proc main(): int {.exportc.} =
+proc KernelMain(): int {.exportc.} =
     return 0
