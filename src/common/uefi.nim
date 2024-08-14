@@ -86,7 +86,12 @@ type
     raiseTpl*: pointer
     restoreTpl*: pointer
     # memory services
-    allocatePages*: pointer
+    allocatePages*: proc (
+        allocateType: EfiAllocateType,
+        memoryType: EfiMemoryType,
+        pages: uint,
+        memory: ptr EfiPhysicalAddress
+      ): EfiStatus {.cdecl.}
     freePages*: pointer
     getMemoryMap*: pointer
     allocatePool*: pointer
@@ -158,9 +163,13 @@ type
         openMode: uint64,
         attributes: uint64
       ): EfiStatus {.cdecl.}
-    close*: pointer
+    close*: proc (this: ptr EfiFileProtocol): EfiStatus {.cdecl.}
     delete*: pointer
-    read*: pointer
+    read*: proc (
+        this: ptr EfiFileProtocol,
+        bufferSize: ptr uint,
+        buffer: pointer
+      ): EfiStatus {.cdecl.}
     write*: pointer
     getPosition*: pointer
     setPosition*: pointer
@@ -199,6 +208,14 @@ type
     timeZone*: int16
     daylight*: uint8
     pad2*: uint8
+
+  EfiAllocateType* = enum
+    AllocateAnyPages,
+    AllocateMaxAddress,
+    AllocateAddress,
+    MaxAllocateType
+
+  EfiPhysicalAddress* = uint64
 
 const
 

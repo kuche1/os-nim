@@ -17,6 +17,11 @@ proc checkStatus*(status: EfiStatus) =
     quit()
   consoleOut " [success]\r\n"
 
+const
+  PageSize = 4096
+  KernelPhysicalBase = 0x100000
+  KernelStackSize = 128 * 1024'u64
+
 proc EfiMainInner(imgHandle: EfiHandle, sysTable: ptr EFiSystemTable): EfiStatus =
 
   uefi.sysTable = sysTable
@@ -64,6 +69,38 @@ proc EfiMainInner(imgHandle: EfiHandle, sysTable: ptr EFiSystemTable): EfiStatus
   consoleOut "boot: Getting kernel file info"
   checkStatus kernelFile.getInfo(kernelFile, addr EfiFileInfoGuid, addr kernelInfoSize, addr kernelInfo)
   echo &"boot: Kernel file size: {kernelInfo.fileSize} bytes"
+
+  consoleOut &"boot: Allocating memory for kernel image "
+  let kernelImageBase = cast[pointer](KernelPhysicalBase)
+  let kernelImagePages = (kernelInfo.fileSize + 0xFFF).uint div PageSize.uint # round up to nearest page
+  checkStatus uefi.sysTable.bootServices.allocatePages(
+    AllocateAddress,
+    OsvKernelCode,
+    kernelImagePages,
+    cast[ptr EfiPhysicalAddress](addr kernelImageBase)
+  )
+
+  consoleOut &"boot: Allocating memory for kernel stack (16 KiB) "
+  var kernelStackBase: uint64
+  let kernelStackPages = KernelStackSize div PageSize
+  checkStatus uefi.sysTable.bootServices.allocatePages(
+    AllocateAnyPages,
+    OsvKernelStack,
+    kernelStackPages,
+    kernelStackBase.addr,
+  )
+
+  # read the kernel into memory
+  consoleOut "boot: Reading kernel into memory"
+  checkStatus kernelFile.read(kernelFile, cast[ptr uint](addr kernelInfo.fileSize), kernelImageBase)
+
+  # close the kernel file
+  consoleOut "boot: Closing kernel file"
+  checkStatus kernelFile.close(kernelFile)
+
+  # close the root directory
+  consoleOut "boot: Closing root directory"
+  checkStatus rootDir.close(rootDir)
 
   quit()
   # better quit (or probably just halt) than return to efi shell
