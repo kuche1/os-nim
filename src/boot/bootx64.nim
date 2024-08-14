@@ -127,8 +127,8 @@ proc EfiMainInner(imgHandle: EfiHandle, sysTable: ptr EFiSystemTable): EfiStatus
   )
 
   # now get the memory map
-  consoleOut "boot: Getting memory map"
-  checkStatus uefi.sysTable.bootServices.getMemoryMap(
+  consoleOut "boot: Getting memory map and exiting boot services"
+  status = uefi.sysTable.bootServices.getMemoryMap(
     addr memoryMapSize,
     cast[ptr EfiMemoryDescriptor](memoryMap),
     addr memoryMapKey,
@@ -136,9 +136,20 @@ proc EfiMainInner(imgHandle: EfiHandle, sysTable: ptr EFiSystemTable): EfiStatus
     addr memoryMapDescriptorVersion
   )
 
-  # exit boot services
-  consoleOut "boot: Exiting boot services"
-  checkStatus uefi.sysTable.bootServices.exitBootServices(imgHandle, memoryMapKey)
+  # IMPORTANT: After this point we cannot output anything to the console, since doing
+  # so may allocate memory and change the memory map, invalidating our map key. We can
+  # only output to the console in case of an error (since we quit anyway).
+
+  if status != EfiSuccess:
+    echo &"boot: Failed to get memory map: {status:#x}"
+    quit()
+
+  status = uefi.sysTable.bootServices.exitBootServices(imgHandle, memoryMapKey)
+  if status != EfiSuccess:
+    echo &"boot: Failed to exit boot services: {status:#x}"
+    quit()
+
+  # ======= NO MORE UEFI BOOT SERVICES =======
 
   quit()
   # better quit (or probably just halt) than return to efi shell
