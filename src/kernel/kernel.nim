@@ -1,5 +1,7 @@
 
 import common/[malloc, libc]
+import debugcon
 
-proc main(): int {.exportc.} =
-    return 0
+proc KernelMain() {.exportc.} =
+  debugln "Hello, world!"
+  quit()
