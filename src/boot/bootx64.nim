@@ -1,6 +1,15 @@
 
 import common/[libc, malloc, uefi]
 import std/strformat
+import debugcon
+
+type
+  KernelEntryPoint = proc () {.cdecl.}
+
+const
+  PageSize = 4096
+  KernelPhysicalBase = 0x100000
+  KernelStackSize = 128 * 1024'u64
 
 proc NimMain() {.importc.}
 
@@ -16,11 +25,6 @@ proc checkStatus*(status: EfiStatus) =
     consoleOut &" [failed, status = {status:#x}]"
     quit()
   consoleOut " [success]\r\n"
-
-const
-  PageSize = 4096
-  KernelPhysicalBase = 0x100000
-  KernelStackSize = 128 * 1024'u64
 
 proc EfiMainInner(imgHandle: EfiHandle, sysTable: ptr EFiSystemTable): EfiStatus =
 
@@ -127,7 +131,7 @@ proc EfiMainInner(imgHandle: EfiHandle, sysTable: ptr EFiSystemTable): EfiStatus
   )
 
   # now get the memory map
-  consoleOut "boot: Getting memory map and exiting boot services"
+  consoleOut "boot: Getting memory map and exiting boot services\n"
   status = uefi.sysTable.bootServices.getMemoryMap(
     addr memoryMapSize,
     cast[ptr EfiMemoryDescriptor](memoryMap),
@@ -148,12 +152,14 @@ proc EfiMainInner(imgHandle: EfiHandle, sysTable: ptr EFiSystemTable): EfiStatus
   if status != EfiSuccess:
     echo &"boot: Failed to exit boot services: {status:#x}"
     quit()
-
+  
   # ======= NO MORE UEFI BOOT SERVICES =======
 
+  # jump to kernel
+  let kernelMain = cast[KernelEntryPoint](kernelImageBase)
+  kernelMain()
+
   quit()
-  # better quit (or probably just halt) than return to efi shell
-  # return EfiSuccess
 
 proc EfiMain(imgHandle: EfiHandle, sysTable: ptr EFiSystemTable): EfiStatus {.exportc.} =
 

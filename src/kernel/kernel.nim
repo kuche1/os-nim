@@ -2,6 +2,9 @@
 import common/[malloc, libc]
 import debugcon
 
-proc KernelMain() {. exportc .} =
+proc NimMain() {.importc.}
+
+proc KernelMain() {.exportc.} =
+  NimMain()
   debugln "Hello, world!"
   quit()
