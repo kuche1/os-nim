@@ -15,9 +15,12 @@ nim c $NIM_FLAGS src/kernel/kernel.nim
 echo 'Copying files to disk image...'
 
 rm -rf diskimg
-mkdir -p diskimg/efi/boot
+mkdir -p diskimg/efi
+mkdir diskimg/efi/boot
+mkdir diskimg/efi/fusion
 
 cp build/bootx64 diskimg/efi/boot/bootx64.efi
+cp build/kernel diskimg/efi/fusion/kernel.bin
 
 echo 'Running eqmu...'
 
