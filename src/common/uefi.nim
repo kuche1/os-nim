@@ -5,43 +5,153 @@ type
   EfiHandle* = pointer
 
   EfiTableHeader = object
-    signature: uint64
-    revision: uint32
-    headerSize: uint32
-    crc32: uint32
-    reserved: uint32
+    signature*: uint64
+    revision*: uint32
+    headerSize*: uint32
+    crc32*: uint32
+    reserved*: uint32
 
   # structure that is passed to the bootloader by UEFI firmware
   EfiSystemTable* = object
-    header: EfiTableHeader
-    firmwareVendor: WideCString
-    firmwareRevision: uint32
-    consoleInHandle: EfiHandle
-    conIn: pointer
-    consoleOutHandle: EfiHandle
-    conOut: ptr SimpleTextOutputProtocol
-    standardErrorHandle: EfiHandle
-    stdErr: ptr SimpleTextOutputProtocol
-    runtimeServices: pointer
-    bootServices: pointer
-    numTableEntries: uint
-    configTable: pointer
+    header*: EfiTableHeader
+    firmwareVendor*: WideCString
+    firmwareRevision*: uint32
+    consoleInHandle*: EfiHandle
+    conIn*: pointer
+    consoleOutHandle*: EfiHandle
+    conOut*: ptr SimpleTextOutputProtocol
+    standardErrorHandle*: EfiHandle
+    stdErr*: ptr SimpleTextOutputProtocol
+    runtimeServices*: pointer
+    bootServices*: ptr EfiBootServices
+    numTableEntries*: uint
+    configTable*: pointer
   
-  SimpleTextOutputProtocol = object
-    reset: pointer
-    outputString: proc (this: ptr SimpleTextOutputProtocol, str: WideCString): EfiStatus {.cdecl.}
-    testString: pointer
-    queryMode: pointer
-    setMode: pointer
-    setAttribute: pointer
-    clearScreen: proc (this: ptr SimpleTextOutputProtocol): EfiStatus {.cdecl.}
-    setCursorPos: pointer
-    enableCursor: pointer
-    mode: ptr pointer
+  SimpleTextOutputProtocol* = object
+    reset*: pointer
+    outputString*: proc (this: ptr SimpleTextOutputProtocol, str: WideCString): EfiStatus {.cdecl.}
+    testString*: pointer
+    queryMode*: pointer
+    setMode*: pointer
+    setAttribute*: pointer
+    clearScreen*: proc (this: ptr SimpleTextOutputProtocol): EfiStatus {.cdecl.}
+    setCursorPos*: pointer
+    enableCursor*: pointer
+    mode*: ptr pointer
+
+  EfiLoadedImageProtocol* = object
+    revision*: uint32
+    parentHandle*: EfiHandle
+    systemTable*: ptr EfiSystemTable
+    # Source location of the image
+    deviceHandle*: EfiHandle
+    filePath*: pointer
+    reserved*: pointer
+    # Image's load options
+    loadOptionsSize*: uint32
+    loadOptions*: pointer
+    # Location where image was loaded
+    imageBase*: pointer
+    imageSize*: uint64
+    imageCodeType*: EfiMemoryType
+    imageDataType*: EfiMemoryType
+    unload*: pointer
+
+  EfiMemoryType* = enum
+    EfiReservedMemory
+    EfiLoaderCode
+    EfiLoaderData
+    EfiBootServicesCode
+    EfiBootServicesData
+    EfiRuntimeServicesCode
+    EfiRuntimeServicesData
+    EfiConventionalMemory
+    EfiUnusableMemory
+    EfiACPIReclaimMemory
+    EfiACPIMemoryNVS
+    EfiMemoryMappedIO
+    EfiMemoryMappedIOPortSpace
+    EfiPalCode
+    EfiPersistentMemory
+    EfiUnacceptedMemory
+    OsvKernelCode = 0x80000000
+    OsvKernelData = 0x80000001
+    OsvKernelStack = 0x80000002
+    EfiMaxMemoryType
+
+  EfiBootServices* = object
+    hdr*: EfiTableHeader
+    # task priority services
+    raiseTpl*: pointer
+    restoreTpl*: pointer
+    # memory services
+    allocatePages*: pointer
+    freePages*: pointer
+    getMemoryMap*: pointer
+    allocatePool*: pointer
+    freePool*: pointer
+    # event & timer services
+    createEvent*: pointer
+    setTimer*: pointer
+    waitForEvent*: pointer
+    signalEvent*: pointer
+    closeEvent*: pointer
+    checkEvent*: pointer
+    # protocol handler services
+    installProtocolInterface*: pointer
+    reinstallProtocolInterface*: pointer
+    uninstallProtocolInterface*: pointer
+    handleProtocol*: proc (handle: EfiHandle, protocol: EfiGuid, `interface`: ptr pointer): EfiStatus {.cdecl.}
+    reserved*: pointer
+    registerProtocolNotify*: pointer
+    locateHandle*: pointer
+    locateDevicePath*: pointer
+    installConfigurationTable*: pointer
+    # image services
+    loadImage*: pointer
+    startImage*: pointer
+    exit*: pointer
+    unloadImage*: pointer
+    exitBootServices*: pointer
+    # misc services
+    getNextMonotonicCount*: pointer
+    stall*: pointer
+    setWatchdogTimer*: pointer
+    # driver support services
+    connectController*: pointer
+    disconnectController*: pointer
+    # open and close protocol services
+    openProtocol*: pointer
+    closeProtocol*: pointer
+    openProtocolInformation*: pointer
+    # library services
+    protocolsPerHandle*: pointer
+    locateHandleBuffer*: pointer
+    locateProtocol*: pointer
+    installMultipleProtocolInterfaces*: pointer
+    uninstallMultipleProtocolInterfaces*: pointer
+    # 32-bit CRC services
+    calculateCrc32*: pointer
+    # misc services
+    copyMem*: pointer
+    setMem*: pointer
+    createEventEx*: pointer
+
+  EfiGuid* = object
+    data1: uint32
+    data2: uint16
+    data3: uint16
+    data4: array[8, uint8]
 
 const
   EfiSuccess* = 0
   EfiLoadError* = 1
+
+const
+  EfiLoadedImageProtocolGuid* = EfiGuid(
+    data1: 0x5B1B31A1, data2: 0x9562, data3: 0x11d2,
+    data4: [0x8e, 0x3f, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b]
+  )
 
 var
   sysTable*: ptr EfiSystemTable
