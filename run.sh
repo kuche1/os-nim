@@ -4,6 +4,11 @@ set -euo pipefail
 
 NIM_FLAGS='--os:any'
 
+echo 'Cleaning temporary folders...'
+
+rm -rf build
+rm -rf diskimg
+
 echo 'Compiling boot...'
 
 nim c $NIM_FLAGS src/boot/bootx64.nim
@@ -14,13 +19,12 @@ nim c $NIM_FLAGS src/kernel/main.nim
 
 echo 'Copying files to disk image...'
 
-rm -rf diskimg
 mkdir -p diskimg/efi
 mkdir diskimg/efi/boot
 mkdir diskimg/efi/fusion
 
 cp build/bootx64 diskimg/efi/boot/bootx64.efi
-cp build/kernel diskimg/efi/fusion/kernel.bin
+cp build/main diskimg/efi/fusion/kernel.bin
 
 echo 'Running eqmu...'
 
