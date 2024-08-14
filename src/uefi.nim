@@ -40,8 +40,8 @@ type
     mode: ptr pointer
 
 const
-  EfiSuccess = 0
-  EfiLoadError = 1
+  EfiSuccess* = 0
+  EfiLoadError* = 1
 
 var
   sysTable*: ptr EfiSystemTable
