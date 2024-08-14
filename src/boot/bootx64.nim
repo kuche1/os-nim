@@ -102,6 +102,40 @@ proc EfiMainInner(imgHandle: EfiHandle, sysTable: ptr EFiSystemTable): EfiStatus
   consoleOut "boot: Closing root directory"
   checkStatus rootDir.close(rootDir)
 
+  # memory map
+  var memoryMapSize = 0.uint
+  var memoryMap: ptr UncheckedArray[EfiMemoryDescriptor]
+  var memoryMapKey: uint
+  var memoryMapDescriptorSize: uint
+  var memoryMapDescriptorVersion: uint32
+
+  # get memory map size
+  status = uefi.sysTable.bootServices.getMemoryMap(
+    addr memoryMapSize,
+    cast[ptr EfiMemoryDescriptor](nil),
+    cast[ptr uint](nil),
+    cast[ptr uint](addr memoryMapDescriptorSize),
+    cast[ptr uint32](nil)
+  )
+  # increase memory map size to account for the next call to allocatePool
+  inc memoryMapSize, memoryMapDescriptorSize
+
+  # allocate pool for memory map (this changes the memory map size, hence the previous step)
+  consoleOut "boot: Allocating pool for memory map"
+  checkStatus uefi.sysTable.bootServices.allocatePool(
+    EfiLoaderData, memoryMapSize, cast[ptr pointer](addr memoryMap)
+  )
+
+  # now get the memory map
+  consoleOut "boot: Getting memory map"
+  checkStatus uefi.sysTable.bootServices.getMemoryMap(
+    addr memoryMapSize,
+    cast[ptr EfiMemoryDescriptor](memoryMap),
+    addr memoryMapKey,
+    addr memoryMapDescriptorSize,
+    addr memoryMapDescriptorVersion
+  )
+
   quit()
   # better quit (or probably just halt) than return to efi shell
   # return EfiSuccess

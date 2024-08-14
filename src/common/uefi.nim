@@ -93,8 +93,18 @@ type
         memory: ptr EfiPhysicalAddress
       ): EfiStatus {.cdecl.}
     freePages*: pointer
-    getMemoryMap*: pointer
-    allocatePool*: pointer
+    getMemoryMap*: proc (
+        memoryMapSize: ptr uint,
+        memoryMap: ptr EfiMemoryDescriptor,
+        mapKey: ptr uint,
+        descriptorSize: ptr uint,
+        descriptorVersion: ptr uint32
+      ): EfiStatus {.cdecl.}
+    allocatePool*: proc (
+        poolType: EfiMemoryType,
+        size: uint,
+        buffer: ptr pointer
+      ): EfiStatus {.cdecl.}
     freePool*: pointer
     # event & timer services
     createEvent*: pointer
@@ -215,7 +225,15 @@ type
     AllocateAddress,
     MaxAllocateType
 
+  EfiMemoryDescriptor* = object
+    `type`*: EfiMemoryType
+    physicalStart*: EfiPhysicalAddress
+    virtualStart*: EfiVirtualAddress
+    numberOfPages*: uint64
+    attribute*: uint64
+
   EfiPhysicalAddress* = uint64
+  EfiVirtualAddress* = uint64
 
 const
 
