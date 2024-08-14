@@ -2,14 +2,18 @@
 
 set -euo pipefail
 
+echo 'Compiling boot...'
+
 nim c --os:any src/bootx64.nim
+
+echo 'Moving files...'
 
 rm -rf diskimg
 mkdir -p diskimg/efi/boot
 
 mv src/bootx64 diskimg/efi/boot/bootx64.efi
 
-echo "Running eqmu..."
+echo 'Running eqmu...'
 
 qemu-system-x86_64 \
     -drive if=pflash,format=raw,file=ovmf/OVMF_CODE.fd,readonly=on \
