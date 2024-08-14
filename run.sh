@@ -4,14 +4,14 @@ set -euo pipefail
 
 echo 'Compiling boot...'
 
-nim c --os:any src/bootx64.nim
+nim c --os:any src/boot/bootx64.nim
 
-echo 'Moving files...'
+echo 'Copying files to disk image...'
 
 rm -rf diskimg
 mkdir -p diskimg/efi/boot
 
-mv src/bootx64 diskimg/efi/boot/bootx64.efi
+cp build/bootx64 diskimg/efi/boot/bootx64.efi
 
 echo 'Running eqmu...'
 

@@ -1,7 +1,5 @@
 
-import libc
-import malloc
-import uefi
+import common/[libc, malloc, uefi]
 
 proc NimMain() {.importc.}
 
