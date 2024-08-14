@@ -2,9 +2,11 @@
 
 set -euo pipefail
 
+NIM_FLAGS='--os:any'
+
 echo 'Compiling boot...'
 
-nim c --os:any src/boot/bootx64.nim
+nim c $NIM_FLAGS src/boot/bootx64.nim
 
 echo 'Copying files to disk image...'
 
