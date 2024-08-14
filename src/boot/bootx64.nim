@@ -21,6 +21,8 @@ proc EfiMainInner(imgHandle: EfiHandle, sysTable: ptr EFiSystemTable): EfiStatus
 
   uefi.sysTable = sysTable
 
+  # consoleClear()
+
   echo "LigmaOS3 Bootloader"
 
   var status: EfiStatus
@@ -32,15 +34,6 @@ proc EfiMainInner(imgHandle: EfiHandle, sysTable: ptr EFiSystemTable): EfiStatus
   checkStatus uefi.sysTable.bootServices.handleProtocol(
     imgHandle, EfiLoadedImageProtocolGuid, cast[ptr pointer](addr loadedImage)
   )
-
-  # consoleClear()
-
-  # echo "Hello"
-
-  # # force an IndexDefect exception
-  # let a = [1, 2, 3]
-  # let n = 5
-  # discard a[n]
 
   quit()
   # better quit (or probably just halt) than return to efi shell
