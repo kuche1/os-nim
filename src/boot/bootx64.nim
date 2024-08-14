@@ -57,6 +57,14 @@ proc EfiMainInner(imgHandle: EfiHandle, sysTable: ptr EFiSystemTable): EfiStatus
   consoleOut kernelPath
   checkStatus rootDir.open(rootDir, addr kernelFile, kernelPath, 1, 1)
 
+  # get kernel file size
+  var kernelInfo: EfiFileInfo
+  var kernelInfoSize = sizeof(EfiFileInfo).uint
+
+  consoleOut "boot: Getting kernel file info"
+  checkStatus kernelFile.getInfo(kernelFile, addr EfiFileInfoGuid, addr kernelInfoSize, addr kernelInfo)
+  echo &"boot: Kernel file size: {kernelInfo.fileSize} bytes"
+
   quit()
   # better quit (or probably just halt) than return to efi shell
   # return EfiSuccess

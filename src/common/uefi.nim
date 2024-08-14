@@ -164,7 +164,12 @@ type
     write*: pointer
     getPosition*: pointer
     setPosition*: pointer
-    getInfo*: pointer
+    getInfo*: proc (
+        this: ptr EfiFileProtocol,
+        infoType: ptr EfiGuid,
+        infoSize: ptr uint,
+        info: pointer
+      ): EfiStatus {.cdecl.}
     setInfo*: pointer
     flush*: pointer
     openEx*: pointer
@@ -207,6 +212,11 @@ const
 
   EfiSimpleFileSystemProtocolGuid* = EfiGuid(
     data1: 0x964e5b22'u32, data2: 0x6459, data3: 0x11d2,
+    data4: [0x8e, 0x39, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b]
+  )
+
+  EfiFileInfoGuid* = EfiGuid(
+    data1: 0x09576e92'u32, data2: 0x6d3f, data3: 0x11d2,
     data4: [0x8e, 0x39, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b]
   )
 
