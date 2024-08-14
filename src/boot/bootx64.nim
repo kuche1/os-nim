@@ -35,6 +35,28 @@ proc EfiMainInner(imgHandle: EfiHandle, sysTable: ptr EFiSystemTable): EfiStatus
     imgHandle, EfiLoadedImageProtocolGuid, cast[ptr pointer](addr loadedImage)
   )
 
+  # get the FileSystem protocol from the device handle
+  var fileSystem: ptr EfiSimpleFileSystemProtocol
+
+  consoleOut "boot: Acquiring SimpleFileSystem protocol"
+  checkStatus uefi.sysTable.bootServices.handleProtocol(
+    loadedImage.deviceHandle, EfiSimpleFileSystemProtocolGuid, cast[ptr pointer](addr fileSystem)
+  )
+
+  # open the root directory
+  var rootDir: ptr EfiFileProtocol
+
+  consoleOut "boot: Opening root directory"
+  checkStatus fileSystem.openVolume(fileSystem, addr rootDir)
+
+  # open the kernel file
+  var kernelFile: ptr EfiFileProtocol
+  let kernelPath = W"efi\fusion\kernel.bin"
+
+  consoleOut "boot: Opening kernel file: "
+  consoleOut kernelPath
+  checkStatus rootDir.open(rootDir, addr kernelFile, kernelPath, 1, 1)
+
   quit()
   # better quit (or probably just halt) than return to efi shell
   # return EfiSuccess

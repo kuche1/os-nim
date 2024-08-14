@@ -1,5 +1,6 @@
 
 type
+
   EfiStatus* = uint
 
   EfiHandle* = pointer
@@ -143,14 +144,70 @@ type
     data3: uint16
     data4: array[8, uint8]
 
+  EfiSimpleFileSystemProtocol* = object
+    revision*: uint64
+    openVolume*: proc (this: ptr EfiSimpleFileSystemProtocol, root: ptr ptr EfiFileProtocol):
+      EfiStatus {.cdecl.}
+
+  EfiFileProtocol* = object
+    revision*: uint64
+    open*: proc (
+        this: ptr EfiFileProtocol,
+        newHandle: ptr ptr EfiFileProtocol,
+        fileName: WideCString,
+        openMode: uint64,
+        attributes: uint64
+      ): EfiStatus {.cdecl.}
+    close*: pointer
+    delete*: pointer
+    read*: pointer
+    write*: pointer
+    getPosition*: pointer
+    setPosition*: pointer
+    getInfo*: pointer
+    setInfo*: pointer
+    flush*: pointer
+    openEx*: pointer
+    readEx*: pointer
+    writeEx*: pointer
+    flushEx*: pointer
+
+  EfiFileInfo* = object
+    size*: uint64
+    fileSize*: uint64
+    physicalSize*: uint64
+    createTime*: EfiTime
+    lastAccessTime*: EfiTime
+    modificationTime*: EfiTime
+    attribute*: uint64
+    fileName*: array[256, Utf16Char] # this is a flexible array member (https://en.wikipedia.org/wiki/Flexible_array_member) but that's not supported in nim so fixed size array is used instead
+
+  EfiTime* = object
+    year*: uint16
+    month*: uint8
+    day*: uint8
+    hour*: uint8
+    minute*: uint8
+    second*: uint8
+    pad1*: uint8
+    nanosecond*: uint32
+    timeZone*: int16
+    daylight*: uint8
+    pad2*: uint8
+
 const
+
   EfiSuccess* = 0
   EfiLoadError* = 1
 
-const
   EfiLoadedImageProtocolGuid* = EfiGuid(
     data1: 0x5B1B31A1, data2: 0x9562, data3: 0x11d2,
     data4: [0x8e, 0x3f, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b]
+  )
+
+  EfiSimpleFileSystemProtocolGuid* = EfiGuid(
+    data1: 0x964e5b22'u32, data2: 0x6459, data3: 0x11d2,
+    data4: [0x8e, 0x39, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b]
   )
 
 var
@@ -172,6 +229,10 @@ proc consoleClear*() =
 proc consoleOut*(str: string) =
   assert not sysTable.isNil
   discard sysTable.conOut.outputString(sysTable.conOut, W(str))
+
+proc consoleOut*(str: WideCString) =
+  assert not sysTable.isNil
+  discard sysTable.conOut.outputString(sysTable.conOut, str)
 
 proc consoleError*(str: string) =
   assert not sysTable.isNil
