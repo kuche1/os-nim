@@ -136,6 +136,10 @@ proc EfiMainInner(imgHandle: EfiHandle, sysTable: ptr EFiSystemTable): EfiStatus
     addr memoryMapDescriptorVersion
   )
 
+  # exit boot services
+  consoleOut "boot: Exiting boot services"
+  checkStatus uefi.sysTable.bootServices.exitBootServices(imgHandle, memoryMapKey)
+
   quit()
   # better quit (or probably just halt) than return to efi shell
   # return EfiSuccess

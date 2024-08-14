@@ -128,7 +128,10 @@ type
     startImage*: pointer
     exit*: pointer
     unloadImage*: pointer
-    exitBootServices*: pointer
+    exitBootServices*: proc (
+        imageHandle: EfiHandle,
+        mapKey: uint
+      ): EfiStatus {.cdecl.}
     # misc services
     getNextMonotonicCount*: pointer
     stall*: pointer
