@@ -4,9 +4,10 @@ type
     Free
     KernelCode
     KernelData
-    KernelImage
     KernelStack
-    KernelBootInfo
+    UserCode
+    UserData
+    UserStack
     Reserved
 
   MemoryMapEntry* = object
