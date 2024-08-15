@@ -214,9 +214,22 @@ proc EfiMainInner(imgHandle: EfiHandle, sysTable: ptr EFiSystemTable): EfiStatus
   for i in 0 ..< physMemoryMap.len:
     bootInfo.physicalMemoryMap.entries[i] = physMemoryMap[i]
 
-  # jump to kernel
-  let kernelMain = cast[KernelEntryPoint](kernelImageBase)
-  kernelMain(bootInfo)
+  # switch stacks (because boot and kernel use different call conventions (x86_64-unknown-windows and x86_64-unknown-elf))
+  # and jump to kernel
+  let kernelStackTop = kernelStackBase + KernelStackSize
+  asm """
+    mov rdi, %0  # bootInfo
+    mov rsp, %1  # kernel stack top
+    jmp %2       # kernel entry point
+    :
+    : "r"(`bootInfoBase`),
+      "r"(`kernelStackTop`),
+      "r"(`KernelPhysicalBase`)
+  """
+
+  # # jump to kernel
+  # let kernelMain = cast[KernelEntryPoint](kernelImageBase)
+  # kernelMain(bootInfo)
 
   quit()
 
