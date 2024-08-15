@@ -1,17 +1,56 @@
 
-import common/[libc, malloc, uefi]
 import std/strformat
-import debugcon
+import std/sets
+import common/[libc, malloc, uefi, bootinfo]
+
+proc NimMain() {.importc.}
 
 type
-  KernelEntryPoint = proc () {.cdecl.}
+  KernelEntryPoint = proc (bootInfo: ptr BootInfo) {.cdecl.} # must be the same as `KernelMain`
 
 const
   PageSize = 4096
   KernelPhysicalBase = 0x100000
   KernelStackSize = 128 * 1024'u64
 
-proc NimMain() {.importc.}
+# We use a HashSet here because the `EfiMemoryType` has values greater than 64K,
+# which is the maximum value supported by Nim sets.
+const
+  FreeMemoryTypes = [
+    EfiConventionalMemory,
+    EfiBootServicesCode,
+    EfiBootServicesData,
+    EfiLoaderCode,
+    EfiLoaderData,
+  ].toHashSet
+
+proc convertUefiMemoryMap(
+  uefiMemoryMap: ptr UncheckedArray[EfiMemoryDescriptor],
+  uefiMemoryMapSize: uint,
+  uefiMemoryMapDescriptorSize: uint,
+): seq[MemoryMapEntry] =
+  let uefiNumMemoryMapEntries = uefiMemoryMapSize div uefiMemoryMapDescriptorSize
+
+  for i in 0 ..< uefiNumMemoryMapEntries:
+    let uefiEntry = cast[ptr EfiMemoryDescriptor](
+      cast[uint64](uefiMemoryMap) + i * uefiMemoryMapDescriptorSize
+    )
+    let memoryType =
+      if uefiEntry.type in FreeMemoryTypes:
+        Free
+      elif uefiEntry.type == OsvKernelCode:
+        KernelCode
+      elif uefiEntry.type == OsvKernelData:
+        KernelData
+      elif uefiEntry.type == OsvKernelStack:
+        KernelStack
+      else:
+        Reserved
+    result.add(MemoryMapEntry(
+      type: memoryType,
+      start: uefiEntry.physicalStart,
+      nframes: uefiEntry.numberOfPages
+    ))
 
 proc unhandledException*(e: ref Exception) =
   echo "Unhandled exception: " & e.msg & " [" & $e.name & "]"
@@ -94,6 +133,15 @@ proc EfiMainInner(imgHandle: EfiHandle, sysTable: ptr EFiSystemTable): EfiStatus
     kernelStackBase.addr,
   )
 
+  consoleOut &"boot: Allocating memory for BootInfo"
+  var bootInfoBase: uint64
+  checkStatus uefi.sysTable.bootServices.allocatePages(
+    AllocateAnyPages,
+    OsvKernelData,
+    1,
+    bootInfoBase.addr,
+  )
+
   # read the kernel into memory
   consoleOut "boot: Reading kernel into memory"
   checkStatus kernelFile.read(kernelFile, cast[ptr uint](addr kernelInfo.fileSize), kernelImageBase)
@@ -155,9 +203,20 @@ proc EfiMainInner(imgHandle: EfiHandle, sysTable: ptr EFiSystemTable): EfiStatus
   
   # ======= NO MORE UEFI BOOT SERVICES =======
 
+  let physMemoryMap = convertUefiMemoryMap(memoryMap, memoryMapSize, memoryMapDescriptorSize)
+
+  var bootInfo = cast[ptr BootInfo](bootInfoBase)
+
+  # copy physical memory map entries to boot info
+  bootInfo.physicalMemoryMap.len = physMemoryMap.len.uint
+  bootInfo.physicalMemoryMap.entries =
+    cast[ptr UncheckedArray[MemoryMapEntry]](bootInfoBase + sizeof(BootInfo).uint64)
+  for i in 0 ..< physMemoryMap.len:
+    bootInfo.physicalMemoryMap.entries[i] = physMemoryMap[i]
+
   # jump to kernel
   let kernelMain = cast[KernelEntryPoint](kernelImageBase)
-  kernelMain()
+  kernelMain(bootInfo)
 
   quit()
 
