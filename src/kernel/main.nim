@@ -3,11 +3,23 @@ import std/strformat
 import common/[bootinfo, libc, malloc]
 import debugcon
 
+# forward declarations
 proc NimMain() {.importc.}
+proc KernelMainInner(bootInfo: ptr BootInfo)
+proc unhandledException*(e: ref Exception)
 
 proc KernelMain(bootInfo: ptr BootInfo) {.exportc.} =
 
   NimMain()
+
+  try:
+    KernelMainInner(bootInfo)
+  except Exception as e:
+    unhandledException(e)
+
+  quit()
+
+proc KernelMainInner(bootInfo: ptr BootInfo) =
 
   debugln "kernel: Ligma Kernel"
   debugln &"kernel: Memory map length: {bootinfo.physicalMemoryMap.len}"
@@ -36,4 +48,16 @@ proc KernelMain(bootInfo: ptr BootInfo) {.exportc.} =
   debugln ""
   debugln &"Total free: {totalFreePages * 4} KiB ({totalFreePages * 4 div 1024} MiB)"
 
+  # force an IndexDefect exception
+  let a = [1, 2, 3]
+  let n = 5
+  discard a[n]
+
+proc unhandledException*(e: ref Exception) =
+  debugln ""
+  debugln &"Unhandled exception: {e.msg} [{e.name}]"
+  if e.trace.len > 0:
+    debugln ""
+    debugln "Stack trace:"
+    debugln getStackTrace(e)
   quit()
