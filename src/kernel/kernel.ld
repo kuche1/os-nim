@@ -1,14 +1,14 @@
 
 SECTIONS
 {
-  . = 0x100000;
-  .text     : {
-    *main*.o(.text.KernelMain)
-    *main*.o(.text.*)
-    *(.text.*)
+  . = 0xFFFF800000100000;
+  .text   : {
+    *main*.o(.*text.KernelMain)
+    *main*.o(.*text.*)
+    *(.*text*)
   }
-  .rodata   : { *(.rodata*) }
-  .data     : { *(.data) *(.bss) }
+  .rodata : { *(.*rodata*) }
+  .data   : { *(.*data) *(.*bss) }
   .shstrtab : { *(.shstrtab) }
 
   /DISCARD/ : { *(*) }

@@ -2,8 +2,8 @@
 import std/strformat
 import std/options
 import common/[bootinfo, libc, malloc]
+import kernel/[pmm, vmm]
 import debugcon
-import pmm
 
 # forward declarations
 proc NimMain() {.importc.}
@@ -30,7 +30,6 @@ proc KernelMain(bootInfo: ptr BootInfo) {.exportc.} =
   quit()
 
 proc printFreeRegions() =
-  debugln "kernel: Physical memory free regions "
   debug &"""   {"Start":>16}"""
   debug &"""   {"Start (KB)":>12}"""
   debug &"""   {"Size (KB)":>11}"""
@@ -46,37 +45,65 @@ proc printFreeRegions() =
     totalFreePages += nframes
   debugln &"kernel: Total free: {totalFreePages * 4} KiB ({totalFreePages * 4 div 1024} MiB)"
 
+proc printVMRegions(memoryMap: MemoryMap) =
+  debug &"""   {"Start":>20}"""
+  debug &"""   {"Type":12}"""
+  debug &"""   {"VM Size (KB)":>12}"""
+  debug &"""   {"#Pages":>9}"""
+  debugln ""
+  for i in 0 ..< memoryMap.len:
+    let entry = memoryMap.entries[i]
+    debug &"   {entry.start:>#20x}"
+    debug &"   {entry.type:#12}"
+    debug &"   {entry.nframes * 4:>#12}"
+    debug &"   {entry.nframes:>#9}"
+    debugln ""
+
 proc KernelMainInner(bootInfo: ptr BootInfo) =
   debugln ""
   debugln "kernel: Fusion Kernel"
 
   debug "kernel: Initializing physical memory manager "
-  pmInit(bootInfo.physicalMemoryMap)
+  pmInit(bootInfo.physicalMemoryVirtualBase, bootInfo.physicalMemoryMap)
   debugln "[success]"
 
-  printFreeRegions()
-  debugln ""
+  debug "kernel: Initializing virtual memory manager "
+  vmInit(bootInfo.physicalMemoryVirtualBase, pmm.pmAlloc)
+  debugln "[success]"
 
-  debugln "kernel: Allocating 8 frames"
-  let paddr = pmAlloc(8)
-  if paddr.isNone:
-    debugln "kernel: Allocation failed"
+  debugln "kernel: Physical memory free regions "
   printFreeRegions()
-  debugln ""
 
-  debugln &"kernel: Freeing 2 frames at 0x2000"
-  pmFree(0x2000.PhysAddr, 2)
-  printFreeRegions()
-  debugln ""
+  debugln "kernel: Virtual memory regions "
+  printVMRegions(bootInfo.virtualMemoryMap)
 
-  debugln &"kernel: Freeing 4 frames at 0x4000"
-  pmFree(0x4000.PhysAddr, 4)
-  printFreeRegions()
-  debugln ""
+  # debug "kernel: Initializing physical memory manager "
+  # pmInit(bootInfo.physicalMemoryMap)
+  # debugln "[success]"
 
-  debugln &"kernel: Freeing 2 frames at 0xa0000"
-  pmFree(0xa0000.PhysAddr, 2)
-  printFreeRegions()
-  debugln ""
+  # printFreeRegions()
+  # debugln ""
+
+  # debugln "kernel: Allocating 8 frames"
+  # let paddr = pmAlloc(8)
+  # if paddr.isNone:
+  #   debugln "kernel: Allocation failed"
+  # printFreeRegions()
+  # debugln ""
+
+  # debugln &"kernel: Freeing 2 frames at 0x2000"
+  # pmFree(0x2000.PhysAddr, 2)
+  # printFreeRegions()
+  # debugln ""
+
+  # debugln &"kernel: Freeing 4 frames at 0x4000"
+  # pmFree(0x4000.PhysAddr, 4)
+  # printFreeRegions()
+  # debugln ""
+
+  # debugln &"kernel: Freeing 2 frames at 0xa0000"
+  # pmFree(0xa0000.PhysAddr, 2)
+  # printFreeRegions()
+  # debugln ""
 
   quit()

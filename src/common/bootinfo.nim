@@ -21,3 +21,5 @@ type
 
   BootInfo* = object
     physicalMemoryMap*: MemoryMap
+    virtualMemoryMap*: MemoryMap
+    physicalMemoryVirtualBase*: uint64

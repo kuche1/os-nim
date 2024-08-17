@@ -21,10 +21,14 @@ type
 var
   head: ptr PMNode
   maxPhysAddr: PhysAddr # exclusive
+  physicalMemoryVirtualBase: uint64
   reservedRegions: seq[PMRegion]
 
-proc toPMNodePtr*(paddr: PhysAddr): ptr PMNode {.inline.} = cast[ptr PMNode](paddr)
-proc toPhysAddr*(node: ptr PMNode): PhysAddr {.inline.} = cast[PhysAddr](node)
+proc toPhysAddr(p: ptr PMNode): PhysAddr {.inline.} =
+  result = PhysAddr(cast[uint64](p) - physicalMemoryVirtualBase)
+
+proc toPMNodePtr(p: PhysAddr): ptr PMNode {.inline.} =
+  result = cast[ptr PMNode](cast[uint64](p) + physicalMemoryVirtualBase)
 
 proc `==`*(a, b: PhysAddr): bool {.inline.} = a.uint64 == b.uint64
 proc `<`(p1, p2: PhysAddr): bool {.inline.} = p1.uint64 < p2.uint64
@@ -62,7 +66,9 @@ proc overlaps(region1, region2: PMRegion): bool =
     r2.start.PhysAddr < endAddr(r1.start.PhysAddr, r1.nframes)
   )
 
-proc pmInit*(memoryMap: MemoryMap) =
+proc pmInit*(physMemoryVirtualBase: uint64, memoryMap: MemoryMap) =
+  physicalMemoryVirtualBase = physMemoryVirtualBase
+
   var prev: ptr PMNode
 
   for i in 0 ..< memoryMap.len:

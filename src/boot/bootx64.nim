@@ -1,7 +1,8 @@
 
-import std/strformat
-import std/sets
+import std/[strformat, sets, options]
 import common/[libc, malloc, uefi, bootinfo]
+import kernel/[pmm, vmm, pagetables]
+import debugcon
 
 proc NimMain() {.importc.}
 
@@ -10,8 +11,22 @@ type
 
 const
   PageSize = 4096
-  KernelPhysicalBase = 0x100000
-  KernelStackSize = 128 * 1024'u64
+
+type
+  AlignedPage = object
+    data {.align(PageSize).}: array[PageSize, uint8]
+
+const
+  KernelPhysicalBase = 0x10_0000'u64
+  KernelVirtualBase = 0xFFFF_8000_0000_0000'u64 + KernelPhysicalBase
+
+  KernelStackVirtualBase = 0xFFFF_8001_0000_0000'u64 # KernelVirtualBase + 4 GiB
+  KernelStackSize = 16 * 1024'u64
+  KernelStackPages = KernelStackSize div PageSize
+
+  BootInfoVirtualBase = KernelStackVirtualBase + KernelStackSize # after kernel stack
+
+  PhysicalMemoryVirtualBase = 0xFFFF_8002_0000_0000'u64 # KernelVirtualBase + 8 GiB
 
 # We use a HashSet here because the `EfiMemoryType` has values greater than 64K,
 # which is the maximum value supported by Nim sets.
@@ -23,6 +38,49 @@ const
     EfiLoaderCode,
     EfiLoaderData,
   ].toHashSet
+
+proc createPageTable(
+  bootloaderBase: uint64,
+  bootloaderPages: uint64,
+  kernelImageBase: uint64,
+  kernelImagePages: uint64,
+  kernelStackBase: uint64,
+  kernelStackPages: uint64,
+  bootInfoBase: uint64,
+  bootInfoPages: uint64,
+  physMemoryPages: uint64,
+): ptr PML4Table =
+
+  proc bootAlloc(nframes: uint64): Option[PhysAddr] =
+    result = some(cast[PhysAddr](new AlignedPage))
+
+  # initialize vmm using identity-mapped physical memory
+  vmInit(physMemoryVirtualBase = 0'u64, physAlloc = bootAlloc)
+
+  debugln &"boot: Creating new page tables"
+  var pml4 = cast[ptr PML4Table](bootAlloc(1).get)
+
+  # identity-map bootloader image
+  debugln &"""boot:   {"Identity-mapping bootloader\:":<30} base={bootloaderBase:#010x}, pages={bootloaderPages}"""
+  identityMapRegion(pml4, bootloaderBase.PhysAddr, bootloaderPages.uint64, paReadWrite, pmSupervisor)
+
+  # identity-map boot info
+  debugln &"""boot:   {"Identity-mapping BootInfo\:":<30} base={bootInfoBase:#010x}, pages={bootInfoPages}"""
+  identityMapRegion(pml4, bootInfoBase.PhysAddr, bootInfoPages, paReadWrite, pmSupervisor)
+
+  # map kernel to higher half
+  debugln &"""boot:   {"Mapping kernel to higher half\:":<30} base={KernelVirtualBase:#010x}, pages={kernelImagePages}"""
+  mapRegion(pml4, KernelVirtualBase.VirtAddr, kernelImageBase.PhysAddr, kernelImagePages, paReadWrite, pmSupervisor)
+
+  # map kernel stack
+  debugln &"""boot:   {"Mapping kernel stack\:":<30} base={KernelStackVirtualBase:#010x}, pages={kernelStackPages}"""
+  mapRegion(pml4, KernelStackVirtualBase.VirtAddr, kernelStackBase.PhysAddr, kernelStackPages, paReadWrite, pmSupervisor)
+
+  # map all physical memory; assume 128 MiB of physical memory
+  debugln &"""boot:   {"Mapping physical memory\:":<30} base={PhysicalMemoryVirtualBase:#010x}, pages={physMemoryPages}"""
+  mapRegion(pml4, PhysicalMemoryVirtualBase.VirtAddr, 0.PhysAddr, physMemoryPages, paReadWrite, pmSupervisor)
+
+  result = pml4
 
 proc convertUefiMemoryMap(
   uefiMemoryMap: ptr UncheckedArray[EfiMemoryDescriptor],
@@ -51,6 +109,59 @@ proc convertUefiMemoryMap(
       start: uefiEntry.physicalStart,
       nframes: uefiEntry.numberOfPages
     ))
+
+proc createVirtualMemoryMap(
+  kernelImagePages: uint64,
+  physMemoryPages: uint64,
+): seq[MemoryMapEntry] =
+
+  result.add(MemoryMapEntry(
+    type: KernelCode,
+    start: KernelVirtualBase,
+    nframes: kernelImagePages
+  ))
+  result.add(MemoryMapEntry(
+    type: KernelStack,
+    start: KernelStackVirtualBase,
+    nframes: KernelStackPages
+  ))
+  result.add(MemoryMapEntry(
+    type: KernelData,
+    start: BootInfoVirtualBase,
+    nframes: 1
+  ))
+  result.add(MemoryMapEntry(
+    type: KernelData,
+    start: PhysicalMemoryVirtualBase,
+    nframes: physMemoryPages
+  ))
+
+proc createBootInfo(
+  bootInfoBase: uint64,
+  kernelImagePages: uint64,
+  physMemoryPages: uint64,
+  physMemoryMap: seq[MemoryMapEntry],
+  virtMemoryMap: seq[MemoryMapEntry],
+): ptr BootInfo =
+  var bootInfo = cast[ptr BootInfo](bootInfoBase)
+  bootInfo.physicalMemoryVirtualBase = PhysicalMemoryVirtualBase
+
+  # copy physical memory map entries to boot info
+  bootInfo.physicalMemoryMap.len = physMemoryMap.len.uint
+  bootInfo.physicalMemoryMap.entries =
+    cast[ptr UncheckedArray[MemoryMapEntry]](bootInfoBase + sizeof(BootInfo).uint64)
+  for i in 0 ..< physMemoryMap.len:
+    bootInfo.physicalMemoryMap.entries[i] = physMemoryMap[i]
+  let physMemoryMapSize = physMemoryMap.len.uint64 * sizeof(MemoryMapEntry).uint64
+
+  # copy virtual memory map entries to boot info
+  bootInfo.virtualMemoryMap.len = virtMemoryMap.len.uint
+  bootInfo.virtualMemoryMap.entries =
+    cast[ptr UncheckedArray[MemoryMapEntry]](bootInfoBase + sizeof(BootInfo).uint64 + physMemoryMapSize)
+  for i in 0 ..< virtMemoryMap.len:
+    bootInfo.virtualMemoryMap.entries[i] = virtMemoryMap[i]
+  
+  result = bootInfo
 
 proc unhandledException*(e: ref Exception) =
   echo "Unhandled exception: " & e.msg & " [" & $e.name & "]"
@@ -203,34 +314,59 @@ proc EfiMainInner(imgHandle: EfiHandle, sysTable: ptr EFiSystemTable): EfiStatus
   
   # ======= NO MORE UEFI BOOT SERVICES =======
 
+
   let physMemoryMap = convertUefiMemoryMap(memoryMap, memoryMapSize, memoryMapDescriptorSize)
 
-  var bootInfo = cast[ptr BootInfo](bootInfoBase)
-
-  # copy physical memory map entries to boot info
-  bootInfo.physicalMemoryMap.len = physMemoryMap.len.uint
-  bootInfo.physicalMemoryMap.entries =
-    cast[ptr UncheckedArray[MemoryMapEntry]](bootInfoBase + sizeof(BootInfo).uint64)
+  # get max free physical memory address
+  var maxPhysAddr: PhysAddr
   for i in 0 ..< physMemoryMap.len:
-    bootInfo.physicalMemoryMap.entries[i] = physMemoryMap[i]
+    if physMemoryMap[i].type == Free:
+      maxPhysAddr = physMemoryMap[i].start.PhysAddr +! physMemoryMap[i].nframes * PageSize
 
-  # switch stacks (because boot and kernel use different call conventions (x86_64-unknown-windows and x86_64-unknown-elf))
-  # and jump to kernel
-  let kernelStackTop = kernelStackBase + KernelStackSize
+  let physMemoryPages: uint64 = maxPhysAddr.uint64 div PageSize
+
+  let virtMemoryMap = createVirtualMemoryMap(kernelImagePages, physMemoryPages)
+
+  debugln &"boot: Preparing BootInfo"
+  let bootInfo = createBootInfo(
+    bootInfoBase,
+    kernelImagePages,
+    physMemoryPages,
+    physMemoryMap,
+    virtMemoryMap,
+  )
+
+  let bootloaderPages = (loadedImage.imageSize.uint + 0xFFF) div 0x1000.uint
+
+  let pml4 = createPageTable(
+    cast[uint64](loadedImage.imageBase),
+    bootloaderPages,
+    cast[uint64](kernelImageBase),
+    kernelImagePages,
+    kernelStackBase,
+    kernelStackPages,
+    bootInfoBase,
+    1, # bootInfoPages
+    physMemoryPages,
+  )
+
+  # jump to kernel
+  let kernelStackTop = KernelStackVirtualBase + KernelStackSize
+  let cr3 = cast[uint64](pml4)
+  debugln &"boot: Jumping to kernel at {cast[uint64](KernelVirtualBase):#010x}"
   asm """
     mov rdi, %0  # bootInfo
+    mov cr3, %2  # PML4
     mov rsp, %1  # kernel stack top
-    jmp %2       # kernel entry point
+    jmp %3       # kernel entry point
     :
     : "r"(`bootInfoBase`),
       "r"(`kernelStackTop`),
-      "r"(`KernelPhysicalBase`)
+      "r"(`cr3`),
+      "r"(`KernelVirtualBase`)
   """
 
-  # # jump to kernel
-  # let kernelMain = cast[KernelEntryPoint](kernelImageBase)
-  # kernelMain(bootInfo)
-
+  # we should never get here
   quit()
 
 proc EfiMain(imgHandle: EfiHandle, sysTable: ptr EFiSystemTable): EfiStatus {.exportc.} =
