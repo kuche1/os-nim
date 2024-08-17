@@ -2,7 +2,7 @@
 import std/strformat
 import std/options
 import common/[bootinfo, libc, malloc]
-import kernel/[pmm, vmm]
+import kernel/[pmm, vmm, gdt]
 import debugcon
 
 # forward declarations
@@ -77,33 +77,8 @@ proc KernelMainInner(bootInfo: ptr BootInfo) =
   debugln "kernel: Virtual memory regions "
   printVMRegions(bootInfo.virtualMemoryMap)
 
-  # debug "kernel: Initializing physical memory manager "
-  # pmInit(bootInfo.physicalMemoryMap)
-  # debugln "[success]"
-
-  # printFreeRegions()
-  # debugln ""
-
-  # debugln "kernel: Allocating 8 frames"
-  # let paddr = pmAlloc(8)
-  # if paddr.isNone:
-  #   debugln "kernel: Allocation failed"
-  # printFreeRegions()
-  # debugln ""
-
-  # debugln &"kernel: Freeing 2 frames at 0x2000"
-  # pmFree(0x2000.PhysAddr, 2)
-  # printFreeRegions()
-  # debugln ""
-
-  # debugln &"kernel: Freeing 4 frames at 0x4000"
-  # pmFree(0x4000.PhysAddr, 4)
-  # printFreeRegions()
-  # debugln ""
-
-  # debugln &"kernel: Freeing 2 frames at 0xa0000"
-  # pmFree(0xa0000.PhysAddr, 2)
-  # printFreeRegions()
-  # debugln ""
+  debug "kernel: Initializing GDT "
+  gdtInit()
+  debugln "[success]"
 
   quit()
